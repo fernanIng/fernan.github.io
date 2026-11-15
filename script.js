@@ -37,54 +37,82 @@ dateInput.min = localToday;
 const appointmentForm = document.getElementById("appointmentForm");
 const formMessage = document.getElementById("formMessage");
 
-appointmentForm.addEventListener("submit", function(event) {
-
+appointmentForm.addEventListener("submit", async function(event) {
     event.preventDefault();
+    formMessage.textContent = "";
 
-    // RECUPERAR LOS DATOS
+    // VALIDAR LOS CAMPOS Y LA ACEPTACIÓN DE PRIVACIDAD
+    if (!appointmentForm.reportValidity()) {
+        return;
+    }
 
     const name = document.getElementById("name").value.trim();
     const email = document.getElementById("email").value.trim();
+    const phone = document.getElementById("phone").value.trim();
     const modality = document.getElementById("modality").value;
     const date = document.getElementById("date").value;
     const time = document.getElementById("time").value;
-    const privacy = document.getElementById("privacy").checked;
-
-    // VALIDAR LOS DATOS
-
-    if (!name || !email || !modality || !date || !time) {
-        showMessage("Completa todos los campos obligatorios.", false);
-        return;
-    }
-
-    if (!privacy) {
-        showMessage("Debes aceptar la información de privacidad.", false);
-        return;
-    }
 
     if (date < localToday) {
         showMessage("Selecciona una fecha válida.", false);
+        dateInput.focus();
         return;
     }
 
-    // MOSTRAR RESULTADO DE LA DEMOSTRACIÓN
+    // Solo se envían datos de contacto y preferencias de cita.
+    const payload = {
+        name,
+        email,
+        phone,
+        modality,
+        date,
+        time,
+        _replyto: email
+    };
+    const submitButton = appointmentForm.querySelector('button[type="submit"]');
 
-    const formattedDate = new Date(date + "T12:00:00")
-        .toLocaleDateString("es-ES");
+    submitButton.disabled = true;
+    submitButton.textContent = "Enviando...";
+    appointmentForm.setAttribute("aria-busy", "true");
 
-    showMessage(
-        `Gracias, ${name}. Has seleccionado una solicitud para el ${formattedDate}, en horario de ${time}, modalidad ${modality}. Esta es una demostración: la solicitud no se ha enviado ni la cita está confirmada.`,
-        true
-    );
+    try {
+        const response = await fetch(
+            "https://formsubmit.co/ajax/albamartospsico@gmail.com",
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Accept": "application/json"
+                },
+                body: JSON.stringify(payload)
+            }
+        );
+        const result = await response.json().catch(() => null);
 
-    appointmentForm.reset();
+        if (!response.ok || !result ||
+            (result.success !== true && result.success !== "true")) {
+            throw new Error("FormSubmit did not accept the request.");
+        }
 
-    // RESTABLECER LA FECHA MÍNIMA
-
-    dateInput.min = localToday;
+        showMessage(
+            `Gracias, ${name}. Tu solicitud se ha enviado. Te contactaremos para confirmar la cita.`,
+            true
+        );
+        appointmentForm.reset();
+        dateInput.min = localToday;
+    } catch (error) {
+        showMessage(
+            "No se pudo enviar la solicitud. Comprueba tu conexión e inténtalo de nuevo; tus datos siguen en el formulario.",
+            false
+        );
+    } finally {
+        submitButton.disabled = false;
+        submitButton.textContent = "Enviar solicitud";
+        appointmentForm.setAttribute("aria-busy", "false");
+    }
 });
 
-// FUNCIÓN PARA MOSTRAR MENSAJES
+// // FUNCIÓN PARA MOSTRAR MENSAJES
 
 function showMessage(message, success) {
 
